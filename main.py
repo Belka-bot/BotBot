@@ -1,12 +1,10 @@
 from fastapi import FastAPI, Request
 import os
 import telegram
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 app = FastAPI()
-
-# Инициализация бота
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-bot = telegram.Bot(token=BOT_TOKEN)
+bot = telegram.Bot(token=os.getenv("BOT_TOKEN"))
 
 @app.get("/")
 async def root():
@@ -15,18 +13,15 @@ async def root():
 @app.post("/")
 async def handle_webhook(request: Request):
     payload = await request.json()
-    print("Received webhook payload:", payload)
-
-    if "message" in payload:
+    if "message" in payload and "text" in payload["message"]:
         chat_id = payload["message"]["chat"]["id"]
-        text = payload["message"].get("text", "")
-
-        if text == "/start":
-            await bot.send_message(chat_id=chat_id, text="Просто пришли ссылку, и я скачаю!")
-
+        text = payload["message"]["text"]
+        if text.startswith("/start"):
+            keyboard = [
+                [InlineKeyboardButton("Скачать MP3", callback_data='mp3')],
+                [InlineKeyboardButton("720p", callback_data='720p')],
+                [InlineKeyboardButton("1080p", callback_data='1080p')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await bot.send_message(chat_id=chat_id, text="Просто пришли ссылку, и я скачаю!", reply_markup=reply_markup)
     return {"status": "received"}
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
