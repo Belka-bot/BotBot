@@ -13,7 +13,14 @@ async def root():
 @app.post("/")
 async def webhook(request: Request):
     data = await request.json()
+# Получаем ID отправителя
+if 'message' in payload:
+    sender = payload['message']['from']['id']
+    bot_id = bot.get_me().id
 
+    # Если отправитель — сам бот, игнорируем
+    if sender == bot_id:
+        return {"status": "ignored"}
     if "message" in data:
         chat_id = data["message"]["chat"]["id"]
         text = data["message"].get("text", "")
