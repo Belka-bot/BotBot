@@ -1,48 +1,43 @@
+
 from fastapi import FastAPI, Request
 import os
 import telegram
-import json
-
-app = FastAPI()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telegram.Bot(token=BOT_TOKEN)
-last_message_id = 0
+
+app = FastAPI()
 
 @app.get("/")
 async def root():
     return {"status": "ok"}
 
+recent_links = set()
+
 @app.post("/")
 async def handle_webhook(request: Request):
-    global last_message_id
     payload = await request.json()
-    print("Received webhook payload:", json.dumps(payload, indent=2))
+    print("Received webhook payload:", payload)
 
-    message = payload.get("message") or payload.get("channel_post")
-    if not message:
-        return {"status": "ignored"}
-
-    message_id = message["message_id"]
-    chat_id = message["chat"]["id"]
+    message = payload.get("message", {})
     text = message.get("text", "")
+    chat_id = message.get("chat", {}).get("id")
 
-    if message_id == last_message_id:
-        print("Duplicate message detected. Skipping.")
-        return {"status": "duplicate"}
-    
-    last_message_id = message_id
+    if "http" in text:
+        if text in recent_links:
+            print("Duplicate link ignored:", text)
+            return {"status": "duplicate"}
 
-    if "youtube.com" in text or "youtu.be" in text:
-        bot.send_message(chat_id=chat_id, text="Просто пришли ссылку, и я скачаю!",
-                         reply_markup=telegram.InlineKeyboardMarkup([
-                             [telegram.InlineKeyboardButton("Скачать MP3", callback_data="mp3")],
-                             [telegram.InlineKeyboardButton("720p", callback_data="720p")],
-                             [telegram.InlineKeyboardButton("1080p", callback_data="1080p")],
-                         ]))
+        recent_links.add(text)
+        if len(recent_links) > 20:
+            recent_links.pop()
+
+        # Здесь должна быть логика отправки кнопок и обработки ссылки
+        print("Processing new link:", text)
+
     return {"status": "received"}
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
