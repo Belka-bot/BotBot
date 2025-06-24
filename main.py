@@ -1,43 +1,64 @@
-
 from fastapi import FastAPI, Request
+import uvicorn
 import os
-import telegram
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Dispatcher, CallbackContext, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from yt_dlp import YoutubeDL
+import asyncio
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-bot = telegram.Bot(token=BOT_TOKEN)
-
+TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=TOKEN)
 app = FastAPI()
+dispatcher = Dispatcher(bot=bot, update_queue=None, workers=4, use_context=True)
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+last_links = set()
 
-recent_links = set()
+def build_keyboard(formats):
+    buttons = []
+    for fmt in formats:
+        buttons.append([InlineKeyboardButton(fmt["text"], callback_data=fmt["url"])])
+    return InlineKeyboardMarkup(buttons)
+
+def get_formats(url):
+    ydl_opts = {'quiet': True, 'skip_download': True}
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = []
+        for f in info.get('formats', []):
+            if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
+                text = f"{f['format_note']} / {round(f['filesize'] / 1024 / 1024, 1) if f.get('filesize') else '?'} MB"
+                formats.append({"text": text, "url": f['url']})
+        if info.get('url'):
+            formats.append({"text": "Скачать MP3", "url": info['url']})
+        return formats
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Просто пришли ссылку, и я скачаю!")
+
+def handle_message(update: Update, context: CallbackContext):
+    url = update.message.text.strip()
+    if url in last_links:
+        return
+    last_links.add(url)
+    try:
+        formats = get_formats(url)
+        keyboard = build_keyboard(formats)
+        update.message.reply_text("Выберите формат:", reply_markup=keyboard)
+    except Exception as e:
+        update.message.reply_text("Ошибка при обработке ссылки.")
+
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    query.message.reply_text(f"🔗 {query.data}")
+
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+dispatcher.add_handler(CallbackQueryHandler(button))
 
 @app.post("/")
-async def handle_webhook(request: Request):
-    payload = await request.json()
-    print("Received webhook payload:", payload)
-
-    message = payload.get("message", {})
-    text = message.get("text", "")
-    chat_id = message.get("chat", {}).get("id")
-
-    if "http" in text:
-        if text in recent_links:
-            print("Duplicate link ignored:", text)
-            return {"status": "duplicate"}
-
-        recent_links.add(text)
-        if len(recent_links) > 20:
-            recent_links.pop()
-
-        # Здесь должна быть логика отправки кнопок и обработки ссылки
-        print("Processing new link:", text)
-
-    return {"status": "received"}
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+async def process_update(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, bot)
+    dispatcher.process_update(update)
+    return {"ok": True}
