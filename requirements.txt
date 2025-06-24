@@ -1,4 +1,4 @@
-python-telegram-bot==13.15
-uvicorn==0.23.2
-fastapi==0.111.0
-yt-dlp==2024.04.09
+fastapi
+uvicorn
+requests
+python-dotenv
