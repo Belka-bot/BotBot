@@ -23,7 +23,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("1080p", callback_data=f"1080p|{url}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(f"Белка помогает вам скачать видео:
+    await update.message.reply_text("Белка помогает вам скачать видео:")
 {url}", reply_markup=reply_markup)
 
 # Обработка кнопок
