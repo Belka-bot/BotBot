@@ -19,6 +19,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     keyboard = [
         [InlineKeyboardButton("MP3", callback_data=f"mp3|{url}"),
+        InlineKeyboardButton("480", callback_data=f"480|{url}"),
          InlineKeyboardButton("720p", callback_data=f"720p|{url}"),
          InlineKeyboardButton("1080p", callback_data=f"1080p|{url}")]
     ]
