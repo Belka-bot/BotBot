@@ -23,8 +23,7 @@ async def handle_message(message: types.Message):
         [InlineKeyboardButton(text="Скачать видео", callback_data=f"download|{url}")],
         [InlineKeyboardButton(text="MP3", callback_data=f"mp3|{url}")]
     ])
-    await message.reply(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
-
+    await bot.send_message(callback.message.chat.id, f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
 @dp.callback_query()
 async def handle_callback(callback: types.CallbackQuery):
     action, url = callback.data.split("|")
