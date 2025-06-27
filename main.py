@@ -23,12 +23,11 @@ formats = ["mp3", "144", "240", "360", "480", "720", "1080"]
 @dp.message()
 async def handle_message(message: types.Message):
     url = message.text.strip()
-    buttons = [
-        [InlineKeyboardButton(text=f"{fmt}p" if fmt.isdigit() else "MP3", callback_data=f"{fmt}|{url}")]
-        for fmt in formats
-    ]
-    markup = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await message.reply(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Скачать видео", callback_data=f"download|{url}")],
+        [InlineKeyboardButton(text="MP3", callback_data=f"mp3|{url}")]
+    ])
+    await message.reply_text(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
 
 @dp.callback_query()
 async def handle_callback(callback: types.CallbackQuery):
