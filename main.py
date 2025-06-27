@@ -71,5 +71,12 @@ async def telegram_webhook(req: Request):
 async def on_startup():
     await bot_app.bot.set_webhook(f"https://{os.getenv('WEBHOOK_DOMAIN')}/webhook")
 
+async def main():
+    await application.initialize()
+    await application.start()
+    await application.bot.set_webhook(WEBHOOK_URL)
+
 if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
