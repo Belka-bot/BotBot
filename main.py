@@ -14,6 +14,16 @@ bot_app = Application.builder().token(TOKEN).build()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Просто пришли ссылку, и я скачаю!")
 
+# Подключение хендлеров
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+application.add_handler(CallbackQueryHandler(button_handler))
+
+# Инициализация и вебхук
+await application.initialize()
+await application.start()
+await application.bot.set_webhook(WEBHOOK_URL)
+
 # Обработка сообщений с ссылками
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
