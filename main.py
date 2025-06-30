@@ -55,15 +55,15 @@ async def handle_callback(callback_query: types.CallbackQuery):
         await callback_query.message.answer(f"Ошибка загрузки: {str(e)}")
         return
 
-    if os.path.getsize(filename) > 45 * 1024 * 1024:
-    yadisk_url = upload_to_yandex_disk(filename)  # убедись, что функция так называется!
-        await callback_query.message.answer(
-    f"Файл слишком большой. Скачай через Яндекс.Диск:\n{yadisk_url}"
-)
-    else:
+if os.path.getsize(filename) > 45 * 1024 * 1024:
+    yadisk_url = upload_to_yandex_disk(filename)
+    await callback_query.message.answer(
+        f"Файл слишком большой. Скачай через Яндекс.Диск:\n{yadisk_url}"
+    )
+else:
     await callback_query.message.answer_document(types.FSInputFile(filename))
 
-    os.remove(filename)
+os.remove(filename)
 
 @app.on_event("startup")
 async def on_startup():
