@@ -23,50 +23,53 @@ formats = ["mp3", "144", "240", "360", "480", "720", "1080"]
 @dp.message()
 async def handle_message(message: types.Message):
     url = message.text.strip()
+    if not url.startswith("http"):
+        await message.answer("Отправь корректную ссылку на видео.")
+        return
+
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Скачать видео", callback_data=f"download|{url}")],
-        [InlineKeyboardButton(text="MP3", callback_data=f"mp3|{url}")]
+        [InlineKeyboardButton(text=f"{fmt}p" if fmt.isdigit() else fmt.upper(), callback_data=f"{fmt}|{url}")]
+        for fmt in formats
     ])
-    await message.reply_text(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
+    await message.answer(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
 
 @dp.callback_query()
-async def handle_callback(callback: types.CallbackQuery):
+async def handle_callback(callback_query: types.CallbackQuery):
+    data = callback_query.data
+    fmt, url = data.split("|")
+    await callback_query.answer("Готовим файл...")
+
+    ydl_opts = {
+        'format': f'bestaudio/best' if fmt == 'mp3' else f'bestvideo[height<={fmt}]+bestaudio/best',
+        'outtmpl': f'{fmt}_video.%(ext)s',
+        'noplaylist': True,
+        'quiet': True,
+        'merge_output_format': 'mp4' if fmt != 'mp3' else 'mp3'
+    }
+
     try:
-        action, url = callback.data.split("|")
-        await callback.answer("Скачиваю...", show_alert=False)
-        filename = f"{action}_{abs(hash(url))}.mp4" if action != "mp3" else f"{action}_{abs(hash(url))}.mp3"
-
-        ydl_opts = {
-            "outtmpl": f"/tmp/{filename}",
-            "format": f"bestvideo[height<={action}]+bestaudio/best" if action.isdigit() else "bestaudio",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3"
-            }] if action == "mp3" else []
-        }
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        file_path = f"/tmp/{filename}"
-        file_size = os.path.getsize(file_path)
-
-        if file_size > 49_000_000:
-            link = upload_to_yadisk(file_path)
-            await bot.send_message(callback.message.chat.id, f"Файл больше 50MB, вот ссылка:
-{link}")
-        else:
-            with open(file_path, "rb") as f:
-                await bot.send_document(callback.message.chat.id, f)
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
     except Exception as e:
-        await callback.message.answer(f"Ошибка: {e}")
+        await callback_query.message.answer(f"Ошибка загрузки: {str(e)}")
+        return
+
+    if os.path.getsize(filename) > 45 * 1024 * 1024:
+        yadisk_url = upload_to_yadisk(filename)
+        await callback_query.message.answer(f"Файл слишком большой. Скачай через Яндекс.Диск:
+{yadisk_url}")
+    else:
+        await callback_query.message.answer_document(types.FSInputFile(filename))
+
+    os.remove(filename)
 
 @app.on_event("startup")
 async def on_startup():
     await bot.set_webhook(WEBHOOK_URL)
 
-@app.on_event("shutdown")
-async def on_shutdown():
-    await bot.delete_webhook()
-
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+@app.post(WEBHOOK_PATH)
+async def bot_webhook(request: Request):
+    update = types.Update.model_validate(await request.json())
+    await dp.feed_update(bot, update)
+    return {"ok": True}
