@@ -56,11 +56,12 @@ async def handle_callback(callback_query: types.CallbackQuery):
         return
 
     if os.path.getsize(filename) > 45 * 1024 * 1024:
-        yadisk_url = upload_to_yadisk(filename)
-        await callback_query.message.answer(f"Файл слишком большой. Скачай через Яндекс.Диск:
-{yadisk_url}")
+    yadisk_url = upload_to_yandex_disk(filename)  # убедись, что функция так называется!
+        await callback_query.message.answer(
+    f"Файл слишком большой. Скачай через Яндекс.Диск:\n{yadisk_url}"
+)
     else:
-        await callback_query.message.answer_document(types.FSInputFile(filename))
+    await callback_query.message.answer_document(types.FSInputFile(filename))
 
     os.remove(filename)
 
