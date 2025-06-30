@@ -79,8 +79,7 @@ async def handle_download(chat_id, url, format_code):
                     )
         else:
             link = await upload_to_yandex(filepath)
-            await send_message(chat_id, f"Файл слишком большой. Скачай здесь:
-{link}")
+            await send_message(chat_id, f"Файл слишком большой. Скачай здесь: {link}")
     except Exception as e:
         await send_message(chat_id, f"Ошибка при скачивании: {str(e)}")
     finally:
