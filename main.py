@@ -1,77 +1,66 @@
-
-from fastapi import FastAPI, Request
 import os
-import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-import yt_dlp
-from yandex_disk import upload_to_yadisk
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import Command
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+from aiohttp import web
+from dotenv import load_dotenv
+from downloader import list_formats, download_format
+from yandex_uploader import upload_to_yandex
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN")
-WEBHOOK_PATH = f"/webhook"
-WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}{WEBHOOK_PATH}"
+load_dotenv()
+bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
+dp = Dispatcher()
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-app = FastAPI()
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    await message.answer("Привет! Пришли ссылку на видео — я дам кнопки с форматами.")
 
-formats = ["mp3", "144", "240", "360", "480", "720", "1080"]
-
-@dp.message()
-async def handle_message(message: types.Message):
+@dp.message(F.text & ~F.command)
+async def handle_link(message: types.Message):
     url = message.text.strip()
-    if not url.startswith("http"):
-        await message.answer("Отправь корректную ссылку на видео.")
-        return
-
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{fmt}p" if fmt.isdigit() else fmt.upper(), callback_data=f"{fmt}|{url}")]
-        for fmt in formats
-    ])
-    await message.answer(f"Белка помогает вам скачать видео: {url}", reply_markup=markup)
-
-@dp.callback_query()
-async def handle_callback(callback_query: types.CallbackQuery):
-    data = callback_query.data
-    fmt, url = data.split("|")
-    await callback_query.answer("Готовим файл...")
-
-    ydl_opts = {
-        'format': f'bestaudio/best' if fmt == 'mp3' else f'bestvideo[height<={fmt}]+bestaudio/best',
-        'outtmpl': f'{fmt}_video.%(ext)s',
-        'noplaylist': True,
-        'quiet': True,
-        'merge_output_format': 'mp4' if fmt != 'mp3' else 'mp3'
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-    except Exception as e:
-        await callback_query.message.answer(f"Ошибка загрузки: {str(e)}")
-        return
-
-    if os.path.getsize(filename) > 45 * 1024 * 1024:
-        yadisk_url = upload_to_yadisk(filename)
-        await callback_query.message.answer(
-            f"Файл слишком большой. Скачай через Яндекс.Диск:
-{yadisk_url}"
+    formats = list_formats(url)
+    kb = InlineKeyboardMarkup()
+    for f in formats:
+        # каждый callback_data — корректная строка "dl:<format_id>"
+        kb.add(
+            InlineKeyboardButton(
+                f["format"],
+                callback_data=f"dl:{f['format_id']}"
+            )
         )
+    await message.answer("Выберите формат:", reply_markup=kb)
+
+@dp.callback_query(lambda c: c.data.startswith("dl:"))
+async def handle_download(cb: types.CallbackQuery):
+    fmt = cb.data.split(":", 1)[1]
+    await cb.message.answer("Скачиваю...")
+    filepath = download_format(cb.message.text, fmt)
+    size_mb = os.path.getsize(filepath) / 1024**2
+    if size_mb <= 50:
+        await cb.message.answer_document(open(filepath, "rb"))
     else:
-        await callback_query.message.answer_document(types.FSInputFile(filename))
+        link = upload_to_yandex(filepath)
+        await cb.message.answer(
+            f"Файл большой ({size_mb:.1f} MB), вот ссылка: {link}"
+        )
+    # убираем кнопки после выбора
+    await cb.message.delete_reply_markup()
 
-    os.remove(filename)
+async def on_startup(app: web.Application):
+    await bot.set_webhook(os.getenv("WEBHOOK_URL"))
 
-@app.on_event("startup")
-async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL)
+async def on_cleanup(app: web.Application):
+    await bot.delete_webhook()
 
-@app.post(WEBHOOK_PATH)
-async def bot_webhook(request: Request):
-    update = types.Update.model_validate(await request.json())
-    await dp.feed_update(bot, update)
-    return {"ok": True}
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
+
+if __name__ == "__main__":
+    web.run_app(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000))
+    )
