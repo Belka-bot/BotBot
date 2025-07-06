@@ -37,15 +37,20 @@ async def handle_download(cb: types.CallbackQuery):
     await cb.message.answer("Скачиваю...")
     filepath = download_format(cb.message.text, fmt)
     size_mb = os.path.getsize(filepath) / 1024**2
+
     if size_mb <= 50:
         await cb.message.answer_document(open(filepath, "rb"))
     else:
         link = upload_to_yandex(filepath)
+        # Здесь убедитесь, что строка полностью в кавычках и включает {link}
         await cb.message.answer(
             f"Файл слишком большой. Скачай через Яндекс.Диск: {link}"
         )
+
     # убираем кнопки после выбора
     await cb.message.delete_reply_markup()
+
+
 
 
 async def on_startup(app: web.Application):
