@@ -22,7 +22,6 @@ async def handle_link(message: types.Message):
     formats = list_formats(url)
     kb = InlineKeyboardMarkup()
     for f in formats:
-        # каждый callback_data — корректная строка "dl:<format_id>"
         kb.add(
             InlineKeyboardButton(
                 f["format"],
@@ -42,16 +41,11 @@ async def handle_download(cb: types.CallbackQuery):
         await cb.message.answer_document(open(filepath, "rb"))
     else:
         link = upload_to_yandex(filepath)
-        # Здесь убедитесь, что строка полностью в кавычках и включает {link}
         await cb.message.answer(
             f"Файл слишком большой. Скачай через Яндекс.Диск: {link}"
         )
 
-    # убираем кнопки после выбора
     await cb.message.delete_reply_markup()
-
-
-
 
 async def on_startup(app: web.Application):
     await bot.set_webhook(os.getenv("WEBHOOK_URL"))
