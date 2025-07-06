@@ -1,24 +1,17 @@
-
-import aiohttp
+python
 import os
+import requests
 
-YANDEX_TOKEN = os.getenv("YANDEX_TOKEN")
-YANDEX_DISK_UPLOAD_URL = "https://cloud-api.yandex.net/v1/disk/resources/upload"
+def upload_to_yandex(filepath: str) -> str:
+    token = os.getenv('YANDEX_TOKEN')
+    filename = os.path.basename(filepath)
+    url = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
+    params = {'path': f'/telegram_bot/{filename}', 'overwrite': 'true'}
+    headers = {'Authorization': f'OAuth {token}'}
+    res = requests.get(url, params=params, headers=headers)
+    upload_url = res.json().get('href')
 
-async def upload_to_yandex_disk(file_path):
-    filename = os.path.basename(file_path)
-    headers = {
-        "Authorization": f"OAuth {YANDEX_TOKEN}"
-    }
-    params = {
-        "path": f"/BelkaBot/{filename}",
-        "overwrite": "true"
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(YANDEX_DISK_UPLOAD_URL, headers=headers, params=params) as res:
-            href = (await res.json())["href"]
-        with open(file_path, "rb") as f:
-            async with session.put(href, data=f) as put_res:
-                if put_res.status == 201 or put_res.status == 200:
-                    return f"https://disk.yandex.ru/client/disk/BelkaBot/{filename}"
-    return "Ошибка загрузки"
+    with open(filepath, 'rb') as f:
+        requests.put(upload_url, data=f)
+
+    return f"https://cloud-api.yandex.net/v1/disk/resources/download?path=/telegram_bot/{filename}"
